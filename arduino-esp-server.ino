@@ -1,3 +1,4 @@
+#include <SoftwareSerial.h>
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
@@ -5,11 +6,13 @@
 
 const char* ssid = "Wake Light";
 const char* password = "stayinbed!";
+const int timeout = 5000;  // max response waiting period
 
 String input = "";
 String request = "";
 
 ESP8266WebServer server(80);
+SoftwareSerial arduino(0,2); // RX, TX
 
 const int led = 13;
 
@@ -39,10 +42,21 @@ void handleNotFound(){
 String getResponse() 
 {
   String str = "";
-  while(!Serial.available()) {} // wait for input
-  while (Serial.available() > 0)
+  int now = millis();
+  
+  // start timeout counter
+  while(!arduino.available()) 
   {
-    str = Serial.readString(); // Read serial
+    if((millis() - now) > timeout) 
+    {
+      str = "{\"msg\":\"Server Timeout :( \"}";
+      return str;
+    }
+  }
+  
+  while (arduino.available() > 0)
+  {
+    str = arduino.readString(); // Read serial
   }
   return str;
 }
@@ -50,7 +64,7 @@ String getResponse()
 
 String sendRequest(String request) 
 {
-  Serial.print(request);
+  arduino.print(request);
 }
 
 
@@ -58,17 +72,21 @@ void setup(void){
 
   pinMode(led, OUTPUT);
   digitalWrite(led, 0);
-  Serial.begin(115200);
-  Serial.setTimeout(100);
+  
+  arduino.begin(57600);
+  arduino.setTimeout(250);
+  
+//  Serial.begin(115200);
+//  Serial.setTimeout(250);
+  
   WiFi.softAP(ssid, password);
-  Serial.println("");
-
   IPAddress myIP = WiFi.softAPIP();
-  Serial.print("AP IP address: ");
-  Serial.println(myIP);
+  arduino.println("");
+  arduino.print("AP IP address: ");
+  arduino.println(myIP);
 
   if (MDNS.begin("esp8266")) {
-    Serial.println("MDNS responder started");
+    arduino.println("MDNS responder started");
   }
 
   server.on("/", handleRoot);
@@ -79,13 +97,13 @@ void setup(void){
     request = "{";
     for (uint8_t i=0; i < server.args()-1; i++)
     {
-      request += "\"" + server.argName(i) + "\":" + server.arg(i) + ",";
+      request += "'" + server.argName(i) + "':" + server.arg(i) + ",";
     }
     
     // GET request
     if(server.method() == HTTP_GET) 
     {
-      request += "\"method\":0}";
+      request += "'method':0}";
     }
 
 
@@ -97,7 +115,7 @@ void setup(void){
     
     
     // create request send request
-    Serial.print(request);
+    arduino.print(request);
 
     // wait for response
     input = getResponse();
@@ -105,12 +123,16 @@ void setup(void){
     // send response to client
     server.send(200, "text/plain", input);
 
+    // reset strings
+    input = "";
+    request = "";
+
   });
 
   server.onNotFound(handleNotFound);
 
   server.begin();
-  Serial.println("HTTP server started");
+  arduino.println("HTTP server started");
 }
 
 
