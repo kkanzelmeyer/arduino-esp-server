@@ -7,6 +7,7 @@ const char* ssid = "Wake Light";
 const char* password = "stayinbed!";
 
 String input = "";
+String request = "";
 
 ESP8266WebServer server(80);
 
@@ -47,25 +48,11 @@ String getResponse()
 }
 
 
-String setResponse(String request) 
+String sendRequest(String request) 
 {
   Serial.print(request);
-  // wait for response
-  return getResponse();
 }
 
-//String jsonRequest(ESP8266WebServer webServer) 
-//{
-//  Serial.println("Building JSON request from server object");
-//  String json = "{";
-//  for (uint8_t i=0; i < webServer.args()-1; i++)
-//  {
-//    json += "\"" + webServer.argName(i) + "\":" + webServer.arg(i) + ",";
-//  }
-//  json.setCharAt(json.length()-1, '}');
-//  Serial.println(json);
-//  return json;
-//}
 
 void setup(void){
 
@@ -86,26 +73,38 @@ void setup(void){
 
   server.on("/", handleRoot);
 
-  server.on("/time", [](){
+  server.on("/time", []()
+  {
+
+    request = "{";
+    for (uint8_t i=0; i < server.args()-1; i++)
+    {
+      request += "\"" + server.argName(i) + "\":" + server.arg(i) + ",";
+    }
     
-    if(server.method() == HTTP_GET) {
-      input = getResponse();
-      server.send(200, "text/plain", input);
+    // GET request
+    if(server.method() == HTTP_GET) 
+    {
+      request += "\"method\":0}";
     }
 
-    if(server.method() == HTTP_POST) {
-      // build json message with url params
-      input = "{";
-      for (uint8_t i=0; i < server.args()-1; i++)
-      {
-        input += "\"" + server.argName(i) + "\":" + server.arg(i) + ",";
-      }
-      input.setCharAt(input.length()-1, '}');
-      Serial.print("Sending to client");
-      Serial.println(input);
-      server.send(200, "text/plain", input);
+
+    // POST request
+    if(server.method() == HTTP_POST) 
+    {
+      request += "\"method\":1}";
     }
     
+    
+    // create request send request
+    Serial.print(request);
+
+    // wait for response
+    input = getResponse();
+
+    // send response to client
+    server.send(200, "text/plain", input);
+
   });
 
   server.onNotFound(handleNotFound);
